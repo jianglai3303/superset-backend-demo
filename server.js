@@ -10,10 +10,10 @@ const app = express();
 const PORT = "3001";
 
 const SUPERSET_DOMAIN = `https://supersettest-superset.dev.indocpilot.io`;
-const SUPERSET_SERVICE_ACCOUNT_USERNAME =
-  process.env.SUPERSET_SERVICE_ACCOUNT_USERNAME;
-const SUPERSET_SERVICE_ACCOUNT_PASSWORD =
-  process.env.SUPERSET_SERVICE_ACCOUNT_PASSWORD;
+// const SUPERSET_SERVICE_ACCOUNT_USERNAME =
+//   process.env.SUPERSET_SERVICE_ACCOUNT_USERNAME;
+// const SUPERSET_SERVICE_ACCOUNT_PASSWORD =
+//   process.env.SUPERSET_SERVICE_ACCOUNT_PASSWORD;
 
 const cookieJar = new CookieJar();
 // create axios instance that uses cookie jar
@@ -32,31 +32,31 @@ app.use(
   })
 );
 
-// Get access token using login credentials or use provided keycloak token
-async function getSupersetAccessToken() {
-  try {
-    const loginUrl = `${SUPERSET_DOMAIN}/api/v1/security/login`;
-    // account credentials assigned to the back end aka service account that has authority to issue guest tokens
-    const payload = {
-      username: SUPERSET_SERVICE_ACCOUNT_USERNAME,
-      password: SUPERSET_SERVICE_ACCOUNT_PASSWORD,
-      provider: "db", // Assuming 'db' provider for the service account
-      refresh: true,
-    };
+// // Get access token using login credentials or use provided keycloak token
+// async function getSupersetAccessToken() {
+//   try {
+//     const loginUrl = `${SUPERSET_DOMAIN}/api/v1/security/login`;
+//     // account credentials assigned to the back end aka service account that has authority to issue guest tokens
+//     const payload = {
+//       username: SUPERSET_SERVICE_ACCOUNT_USERNAME,
+//       password: SUPERSET_SERVICE_ACCOUNT_PASSWORD,
+//       provider: "db", // Assuming 'db' provider for the service account
+//       refresh: true,
+//     };
 
-    const response = await axiosInstance.post(loginUrl, payload, {
-      headers: { "Content-Type": "application/json" },
-    });
+//     const response = await axiosInstance.post(loginUrl, payload, {
+//       headers: { "Content-Type": "application/json" },
+//     });
 
-    return response.data.access_token;
-  } catch (error) {
-    console.error(
-      "Error getting Superset access token:",
-      error.response ? error.response.data : error.message
-    );
-    throw new Error("Failed to get Superset access token");
-  }
-}
+//     return response.data.access_token;
+//   } catch (error) {
+//     console.error(
+//       "Error getting Superset access token:",
+//       error.response ? error.response.data : error.message
+//     );
+//     throw new Error("Failed to get Superset access token");
+//   }
+// }
 
 // Get CSRF token using access token, CSRF required to POST and get guest token
 async function getSupersetCsrfToken(accessToken) {
@@ -122,32 +122,22 @@ async function generateGuestToken(
 }
 
 app.post("/api/guest-token", async (req, res) => {
-  // authentication / authorization logic - authentication not necessary, just provide keycloak token ?
-  // parse user name from keycloak token
-  // use username to fetch dashboard resources permitted for user
-  // resource array passed to superset when requesting for guest token, backend just needs to contain the ID
-  // const resources = [
-  //   {
-  //     type: "dashboard",
-  //     id: "7b7fee3f-5319-459d-a636-fd9171620487",
-  //   },
-  //   {
-  //     type: "dashboard",
-  //     id: "8c42ba17-ed60-4ae1-94b2-fb0aef098d21",
-  //   },
-  // ];
+  const resources = [
+    {
+      type: "dashboard",
+      id: "a9005839-fe2b-4be4-9fac-55befb78bb09",
+    },
+  ];
 
-  const resources = [];
   const userFilters = [];
   const accessToken = req.body.accessToken;
 
   try {
-    // const accessToken = await getSupersetAccessToken();
     const { csrfToken } = await getSupersetCsrfToken(accessToken);
     const guestToken = await generateGuestToken(
       accessToken,
       csrfToken,
-      userFilters, // Pass dynamic filters here
+      userFilters,
       resources
     );
 
