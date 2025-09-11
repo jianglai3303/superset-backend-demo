@@ -64,7 +64,6 @@ async function getSupersetCsrfToken(accessToken) {
     const csrfUrl = `${SUPERSET_DOMAIN}/api/v1/security/csrf_token/`;
     const response = await axiosInstance.get(csrfUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      withCredentials: true,
     });
     return {
       csrfToken: response.data.result,
@@ -88,7 +87,6 @@ async function generateGuestToken(
   try {
     const guestTokenUrl = `${SUPERSET_DOMAIN}/api/v1/security/guest_token/`;
     const payload = {
-      // embedded user's (front-end) credentials
       user: {
         username: `app_user_${Math.random().toString(36).substring(7)}`, // Unique username for the guest session
         first_name: "Embedded",
@@ -106,7 +104,6 @@ async function generateGuestToken(
         "X-CSRF-Token": csrfToken,
         "X-CSRFToken": csrfToken,
       },
-      withCredentials: true,
       // axios will handle cookies automatically if you use the same instance
       // or if the Superset API correctly sets them.
     });
