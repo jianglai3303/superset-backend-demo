@@ -45,7 +45,9 @@ app.use(
 //     };
 
 //     const response = await axiosInstance.post(loginUrl, payload, {
-//       headers: { "Content-Type": "application/json" },
+//       headers: {
+//         "Content-Type": "application/json",
+//       },
 //     });
 
 //     return response.data.access_token;
@@ -118,6 +120,28 @@ async function generateGuestToken(
   }
 }
 
+const generateGuestTokenFromCustomEndpoint = async (accessToken, csrfToken) => {
+  const url =
+    "https://supersettest-superset.dev.indocpilot.io/api/v1/guest/guest_token_sso";
+
+  const payload = {
+    jwt: accessToken,
+    dashboard_ids: ["a9005839-fe2b-4be4-9fac-55befb78bb09"],
+  };
+
+  const response = await axiosInstance.post(url, payload, {
+    headers: {
+      "Content-Type": "application/json",
+      Referer: "https://supersettest-superset.dev.indocpilot.io/",
+      Authorization: `Bearer ${accessToken}`,
+      "X-CSRF-Token": csrfToken,
+      "X-CSRFToken": csrfToken,
+    },
+  });
+
+  return response.data.guest_token;
+};
+
 app.post("/api/guest-token", async (req, res) => {
   const resources = [
     {
@@ -131,11 +155,15 @@ app.post("/api/guest-token", async (req, res) => {
 
   try {
     const { csrfToken } = await getSupersetCsrfToken(accessToken);
-    const guestToken = await generateGuestToken(
+    // const guestToken = await generateGuestToken(
+    //   accessToken,
+    //   csrfToken,
+    //   userFilters,
+    //   resources
+    // );
+    const guestToken = await generateGuestTokenFromCustomEndpoint(
       accessToken,
-      csrfToken,
-      userFilters,
-      resources
+      csrfToken
     );
 
     res.json({ token: guestToken });
