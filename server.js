@@ -9,7 +9,7 @@ import { wrapper as axiosCookieJarSupport } from "axios-cookiejar-support";
 const app = express();
 const PORT = "3001";
 
-const SUPERSET_DOMAIN = `https://supersettest-superset.dev.indocpilot.io`;
+const SUPERSET_DOMAIN = `http://localhost:8088`;
 // const SUPERSET_SERVICE_ACCOUNT_USERNAME =
 //   process.env.SUPERSET_SERVICE_ACCOUNT_USERNAME;
 // const SUPERSET_SERVICE_ACCOUNT_PASSWORD =
@@ -64,6 +64,7 @@ app.use(
 async function getSupersetCsrfToken(accessToken) {
   try {
     const csrfUrl = `${SUPERSET_DOMAIN}/api/v1/security/csrf_token/`;
+    console.log("Getting CSRF token with access token:", accessToken);
     const response = await axiosInstance.get(csrfUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -79,79 +80,35 @@ async function getSupersetCsrfToken(accessToken) {
   }
 }
 
-// Use access and CSRF token to POST for guest token
-async function generateGuestToken(
-  accessToken,
-  csrfToken,
-  userSpecificFilters,
-  resources
-) {
-  try {
-    const guestTokenUrl = `${SUPERSET_DOMAIN}/api/v1/security/guest_token/`;
-    const payload = {
-      user: {
-        username: `app_user_${Math.random().toString(36).substring(7)}`, // Unique username for the guest session
-        first_name: "Embedded",
-        last_name: "User",
-      },
-      resources,
-      rls: userSpecificFilters, // Apply Row-Level Security based on your app's RBAC
-    };
-
-    const response = await axiosInstance.post(guestTokenUrl, payload, {
-      headers: {
-        "Content-Type": "application/json",
-        Referer: "https://supersettest-superset.dev.indocpilot.io/",
-        Authorization: `Bearer ${accessToken}`,
-        "X-CSRF-Token": csrfToken,
-        "X-CSRFToken": csrfToken,
-      },
-      // axios will handle cookies automatically if you use the same instance
-      // or if the Superset API correctly sets them.
-    });
-
-    return response.data.token; // The actual guest token JWT
-  } catch (error) {
-    console.error(
-      "Error generating guest token:",
-      error.response ? error.response.data : error.message
-    );
-    throw new Error("Failed to generate guest token");
-  }
-}
-
-const generateGuestTokenFromCustomEndpoint = async (accessToken, csrfToken) => {
+const generateGuestTokenFromCustomEndpoint = async (accessToken, csrfToken, dashboardId) => {
+  console.log("Token:", accessToken, csrfToken);
   const url =
-    "https://supersettest-superset.dev.indocpilot.io/api/v1/guest/guest_token_sso";
-
+    "http://localhost:8088/api/v1/guest/guest_token_sso";
+    
   const payload = {
     jwt: accessToken,
-    dashboard_ids: ["a9005839-fe2b-4be4-9fac-55befb78bb09"],
+    dashboard_ids: [dashboardId],
   };
 
   const response = await axiosInstance.post(url, payload, {
     headers: {
       "Content-Type": "application/json",
-      Referer: "https://supersettest-superset.dev.indocpilot.io/",
+      Referer: "http://localhost:8088/",
       Authorization: `Bearer ${accessToken}`,
       "X-CSRF-Token": csrfToken,
       "X-CSRFToken": csrfToken,
     },
   });
+  console.log("Guest Token Response:", response.data);
 
   return response.data.guest_token;
 };
 
 app.post("/api/guest-token", async (req, res) => {
-  const resources = [
-    {
-      type: "dashboard",
-      id: "a9005839-fe2b-4be4-9fac-55befb78bb09",
-    },
-  ];
 
   const userFilters = [];
   const accessToken = req.body.accessToken;
+  const dashboardId = req.body.dashboardId;
 
   try {
     const { csrfToken } = await getSupersetCsrfToken(accessToken);
@@ -163,7 +120,8 @@ app.post("/api/guest-token", async (req, res) => {
     // );
     const guestToken = await generateGuestTokenFromCustomEndpoint(
       accessToken,
-      csrfToken
+      csrfToken,
+      dashboardId
     );
 
     res.json({ token: guestToken });
