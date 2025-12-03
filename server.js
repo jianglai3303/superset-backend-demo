@@ -9,11 +9,7 @@ import { wrapper as axiosCookieJarSupport } from "axios-cookiejar-support";
 const app = express();
 const PORT = "3001";
 
-const SUPERSET_DOMAIN = `http://localhost:8088`;
-// const SUPERSET_SERVICE_ACCOUNT_USERNAME =
-//   process.env.SUPERSET_SERVICE_ACCOUNT_USERNAME;
-// const SUPERSET_SERVICE_ACCOUNT_PASSWORD =
-//   process.env.SUPERSET_SERVICE_ACCOUNT_PASSWORD;
+const SUPERSET_DOMAIN = `https://{{projectCode}}-superset.dev.indocpilot.io`;
 
 const cookieJar = new CookieJar();
 // create axios instance that uses cookie jar
@@ -32,42 +28,14 @@ app.use(
   })
 );
 
-// // Get access token using login credentials or use provided keycloak token
-// async function getSupersetAccessToken() {
-//   try {
-//     const loginUrl = `${SUPERSET_DOMAIN}/api/v1/security/login`;
-//     // account credentials assigned to the back end aka service account that has authority to issue guest tokens
-//     const payload = {
-//       username: SUPERSET_SERVICE_ACCOUNT_USERNAME,
-//       password: SUPERSET_SERVICE_ACCOUNT_PASSWORD,
-//       provider: "db", // Assuming 'db' provider for the service account
-//       refresh: true,
-//     };
-
-//     const response = await axiosInstance.post(loginUrl, payload, {
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//     });
-
-//     return response.data.access_token;
-//   } catch (error) {
-//     console.error(
-//       "Error getting Superset access token:",
-//       error.response ? error.response.data : error.message
-//     );
-//     throw new Error("Failed to get Superset access token");
-//   }
-// }
-
 // Get CSRF token using access token, CSRF required to POST and get guest token
-async function getSupersetCsrfToken(accessToken) {
+async function getSupersetCsrfToken(projectCode, accessToken) {
   try {
-    const csrfUrl = `${SUPERSET_DOMAIN}/api/v1/security/csrf_token/`;
-    console.log("Getting CSRF token with access token:", accessToken);
+    const csrfUrl = `${SUPERSET_DOMAIN.replace('{{projectCode}}', projectCode)}/api/v1/security/csrf_token/`;
     const response = await axiosInstance.get(csrfUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    console.log("CSRF Token Response:", response.data);
     return {
       csrfToken: response.data.result,
     };
@@ -80,22 +48,19 @@ async function getSupersetCsrfToken(accessToken) {
   }
 }
 
-const generateGuestTokenFromCustomEndpoint = async (accessToken, csrfToken, dashboardId) => {
-  console.log("Token:", accessToken, csrfToken);
+const generateGuestTokenFromCustomEndpoint = async (projectCode, accessToken, csrfToken, dashboardIds) => {
   const url =
-    "http://localhost:8088/api/v1/guest/guest_token_sso";
+    `${SUPERSET_DOMAIN.replace('{{projectCode}}', projectCode)}/api/v1/guest/guest_token_sso`;
     
   const payload = {
     jwt: accessToken,
-    dashboard_ids: [dashboardId],
+    dashboard_ids: dashboardIds,
   };
-
   const response = await axiosInstance.post(url, payload, {
     headers: {
       "Content-Type": "application/json",
-      Referer: "http://localhost:8088/",
+      Referer: SUPERSET_DOMAIN.replace('{{projectCode}}', projectCode),
       Authorization: `Bearer ${accessToken}`,
-      "X-CSRF-Token": csrfToken,
       "X-CSRFToken": csrfToken,
     },
   });
@@ -104,24 +69,19 @@ const generateGuestTokenFromCustomEndpoint = async (accessToken, csrfToken, dash
   return response.data.guest_token;
 };
 
-app.post("/api/guest-token", async (req, res) => {
+app.post("/v1/superset/:project_code/guesttoken/request", async (req, res) => {
 
-  const userFilters = [];
-  const accessToken = req.body.accessToken;
-  const dashboardId = req.body.dashboardId;
-
+  const projectCode = req.params.project_code;
+  const Authorization = req.headers.authorization;
+  const accessToken = Authorization.replace("Bearer ", "");
+  const dashboardIds = req.body.dashboard_ids;
   try {
-    const { csrfToken } = await getSupersetCsrfToken(accessToken);
-    // const guestToken = await generateGuestToken(
-    //   accessToken,
-    //   csrfToken,
-    //   userFilters,
-    //   resources
-    // );
+    const { csrfToken } = await getSupersetCsrfToken(projectCode, accessToken);
     const guestToken = await generateGuestTokenFromCustomEndpoint(
+      projectCode,
       accessToken,
       csrfToken,
-      dashboardId
+      dashboardIds
     );
 
     res.json({ token: guestToken });
